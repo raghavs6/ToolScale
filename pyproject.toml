@@ -1,0 +1,16 @@
+[project]
+name = "toolscale"
+version = "0.1.0"
+description = "Simulator for progress-aware wake-up of inference workers"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
