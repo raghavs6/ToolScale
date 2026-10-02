@@ -1,3 +1,5 @@
+import pytest
+
 from toolscale.sim import Simulator
 from toolscale.workers import Request, WorkerPool
 
@@ -56,3 +58,13 @@ def test_on_done_called_at_finish_after_handoff():
     sim.run()
     # At a's finish, b has already been handed the worker, so the queue is empty.
     assert seen == [("0", 1.0, 0)]
+
+
+def test_check_catches_corrupted_state():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    pool.busy = 1  # pretend the worker is busy, but nothing is running
+    pool.submit(Request(id="0"))  # queues fine: busy == num_workers
+    pool.busy = 0  # now a request waits while a worker is idle
+    with pytest.raises(AssertionError, match="waiting while a worker is idle"):
+        pool._check()

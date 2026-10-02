@@ -32,6 +32,12 @@ class WorkerPool:
             self._start(req)
         else:
             self.queue.append(req)
+        self._check()
+
+    def _check(self) -> None:
+        """Invariants that must hold after every state change; fail loudly the moment one breaks."""
+        assert 0 <= self.busy <= self.num_workers, f"busy={self.busy} out of range"
+        assert not self.queue or self.busy == self.num_workers, "request waiting while a worker is idle"
 
     def _start(self, req: Request) -> None:
         req.start = self.sim.now
@@ -44,5 +50,6 @@ class WorkerPool:
             self._start(self.queue.popleft())
         else:
             self.busy -= 1
+        self._check()
         if req.on_done:
             req.on_done(req)
