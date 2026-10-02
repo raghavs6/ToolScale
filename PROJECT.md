@@ -77,6 +77,7 @@ toolscale/
 ├── toolscale/
 │   ├── sim.py               # event engine: clock + time-ordered callbacks
 │   ├── workers.py           # inference workers and request queue
+│   ├── agents.py            # agents alternating inference and tool calls
 │   ├── workloads.py         # synthetic traces and optional replay
 │   ├── forecasting.py       # return-time estimates
 │   └── policies/            # fixed, reactive, history, progress, oracle
