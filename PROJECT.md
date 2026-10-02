@@ -75,7 +75,8 @@ toolscale/
 ├── project.md
 ├── configs/                 # workload and worker parameters
 ├── toolscale/
-│   ├── simulator.py         # events, agents, tools, queues, workers
+│   ├── sim.py               # event engine: clock + time-ordered callbacks
+│   ├── workers.py           # inference workers and request queue
 │   ├── workloads.py         # synthetic traces and optional replay
 │   ├── forecasting.py       # return-time estimates
 │   └── policies/            # fixed, reactive, history, progress, oracle
