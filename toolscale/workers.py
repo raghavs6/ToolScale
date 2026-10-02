@@ -1,4 +1,4 @@
-"""Inference workers: a pool of identical always-on workers serving a FIFO request queue."""
+"""Inference workers: a pool of identical workers (active, waking, or sleeping) serving a FIFO request queue."""
 
 from collections import deque
 from dataclasses import dataclass
@@ -17,27 +17,67 @@ class Request:
 
 
 class WorkerPool:
-    def __init__(self, sim: Simulator, num_workers: int, service_time: float) -> None:
+    def __init__(
+        self,
+        sim: Simulator,
+        num_workers: int,
+        service_time: float,
+        wake_delay: float = 0.0,
+        initial_active: int | None = None,
+    ) -> None:
+        """`num_workers` counts all provisioned workers; `initial_active` of them start awake (default: all)."""
         self.sim = sim
         self.num_workers = num_workers
         self.service_time = service_time
-        self.busy = 0
+        self.wake_delay = wake_delay
+        self.active = num_workers if initial_active is None else initial_active
+        self.waking = 0
+        self.sleeping = num_workers - self.active
+        self.busy = 0  # active workers currently serving a request
         self.queue: deque[Request] = deque()
+        self._check()
 
     def submit(self, req: Request) -> None:
-        """A request arrives: serve it now if a worker is free, else wait in line."""
+        """A request arrives: serve it now if an active worker is free, else wait in line."""
         req.arrival = self.sim.now
-        if self.busy < self.num_workers:
+        if self.busy < self.active:
             self.busy += 1
             self._start(req)
         else:
             self.queue.append(req)
         self._check()
 
+    def wake(self, n: int) -> None:
+        """Start waking up to `n` sleeping workers; each becomes active after `wake_delay`."""
+        n = min(n, self.sleeping)
+        self.sleeping -= n
+        self.waking += n
+        for _ in range(n):
+            self.sim.schedule(self.wake_delay, self._wake_done, name="wake_done")
+        self._check()
+
+    def sleep(self, n: int) -> None:
+        """Put up to `n` idle active workers to sleep, instantly. Busy and waking workers are skipped."""
+        n = min(n, self.active - self.busy)
+        self.active -= n
+        self.sleeping += n
+        self._check()
+
+    def _wake_done(self) -> None:
+        self.waking -= 1
+        self.active += 1
+        if self.queue:
+            # Serve the line immediately, so no request waits while this worker sits idle.
+            self.busy += 1
+            self._start(self.queue.popleft())
+        self._check()
+
     def _check(self) -> None:
         """Invariants that must hold after every state change; fail loudly the moment one breaks."""
-        assert 0 <= self.busy <= self.num_workers, f"busy={self.busy} out of range"
-        assert not self.queue or self.busy == self.num_workers, "request waiting while a worker is idle"
+        assert min(self.active, self.waking, self.sleeping) >= 0, "negative worker count"
+        assert self.active + self.waking + self.sleeping == self.num_workers, "workers appeared or vanished"
+        assert 0 <= self.busy <= self.active, f"busy={self.busy} out of range"
+        assert not self.queue or self.busy == self.active, "request waiting while a worker is idle"
 
     def _start(self, req: Request) -> None:
         req.start = self.sim.now

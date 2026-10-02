@@ -68,3 +68,60 @@ def test_check_catches_corrupted_state():
     pool.busy = 0  # now a request waits while a worker is idle
     with pytest.raises(AssertionError, match="waiting while a worker is idle"):
         pool._check()
+
+
+def test_request_waits_for_wake():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0, wake_delay=5.0, initial_active=0)
+    req = Request(id="0")
+    pool.submit(req)
+    pool.wake(1)
+    assert (pool.active, pool.waking, pool.sleeping) == (0, 1, 0)
+    sim.run()
+    assert (req.start, req.finish) == (5.0, 6.0)
+    assert (pool.active, pool.waking, pool.sleeping) == (1, 0, 0)
+
+
+def test_sleeping_worker_never_serves():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0, initial_active=0)
+    req = Request(id="0")
+    pool.submit(req)
+    sim.run()
+    assert req.start is None
+    assert list(pool.queue) == [req]
+
+
+def test_woken_worker_drains_queue_alongside_active_one():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0, wake_delay=0.5, initial_active=1)
+    reqs = [Request(id=str(i)) for i in range(3)]
+    for r in reqs:
+        pool.submit(r)
+    pool.wake(1)
+    sim.run()
+    assert [(r.start, r.finish) for r in reqs] == [(0.0, 1.0), (0.5, 1.5), (1.0, 2.0)]
+
+
+def test_sleep_skips_busy_workers():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    pool.submit(Request(id="0"))
+    pool.sleep(2)
+    assert (pool.active, pool.busy, pool.sleeping) == (1, 1, 1)
+
+
+def test_wake_and_sleep_clamp_to_available_workers():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0, wake_delay=1.0, initial_active=1)
+    pool.wake(5)  # only 1 sleeping
+    assert (pool.active, pool.waking, pool.sleeping) == (1, 1, 0)
+    pool.sleep(5)  # only the idle active one sleeps; the waking one is untouched
+    assert (pool.active, pool.waking, pool.sleeping) == (0, 1, 1)
+    sim.run()
+    assert (pool.active, pool.waking, pool.sleeping) == (1, 0, 1)
+
+
+def test_invalid_initial_active_rejected():
+    with pytest.raises(AssertionError):
+        WorkerPool(Simulator(), num_workers=1, service_time=1.0, initial_active=2)
