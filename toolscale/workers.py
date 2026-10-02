@@ -2,16 +2,18 @@
 
 from collections import deque
 from dataclasses import dataclass
+from typing import Callable
 
 from toolscale.sim import Simulator
 
 
 @dataclass
 class Request:
-    id: int
+    id: str
     arrival: float | None = None
     start: float | None = None
     finish: float | None = None
+    on_done: Callable[["Request"], None] | None = None  # called when service finishes
 
 
 class WorkerPool:
@@ -42,3 +44,5 @@ class WorkerPool:
             self._start(self.queue.popleft())
         else:
             self.busy -= 1
+        if req.on_done:
+            req.on_done(req)
