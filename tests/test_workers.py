@@ -125,3 +125,27 @@ def test_wake_and_sleep_clamp_to_available_workers():
 def test_invalid_initial_active_rejected():
     with pytest.raises(AssertionError):
         WorkerPool(Simulator(), num_workers=1, service_time=1.0, initial_active=2)
+
+
+def test_worker_seconds_counts_waking_separately():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0, wake_delay=2.0, initial_active=1)
+    pool.wake(1)
+    sim.run(until=10.0)
+    assert pool.worker_seconds() == (18.0, 2.0)  # active: 1x10 + 1x8; waking: 1x2
+
+
+def test_worker_seconds_stop_when_asleep():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    sim.schedule(4.0, lambda: pool.sleep(1), name="sleep")
+    sim.run(until=10.0)
+    assert pool.worker_seconds() == (14.0, 0.0)  # 2x4 + 1x6
+
+
+def test_busy_and_idle_workers_cost_the_same():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=3.0)
+    pool.submit(Request(id="0"))
+    sim.run(until=10.0)
+    assert pool.worker_seconds() == (10.0, 0.0)  # 3s busy + 7s idle

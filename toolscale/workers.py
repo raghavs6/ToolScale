@@ -35,6 +35,10 @@ class WorkerPool:
         self.sleeping = num_workers - self.active
         self.busy = 0  # active workers currently serving a request
         self.queue: deque[Request] = deque()
+        # Cost meter: worker-seconds spent active and waking, brought up to date at `_last_tick`.
+        self.active_seconds = 0.0
+        self.waking_seconds = 0.0
+        self._last_tick = sim.now
         self._check()
 
     def submit(self, req: Request) -> None:
@@ -50,6 +54,7 @@ class WorkerPool:
     def wake(self, n: int) -> None:
         """Start waking up to `n` sleeping workers; each becomes active after `wake_delay`."""
         n = min(n, self.sleeping)
+        self._tick()
         self.sleeping -= n
         self.waking += n
         for _ in range(n):
@@ -59,11 +64,25 @@ class WorkerPool:
     def sleep(self, n: int) -> None:
         """Put up to `n` idle active workers to sleep, instantly. Busy and waking workers are skipped."""
         n = min(n, self.active - self.busy)
+        self._tick()
         self.active -= n
         self.sleeping += n
         self._check()
 
+    def worker_seconds(self) -> tuple[float, float]:
+        """(active, waking) worker-seconds from creation up to now. Busy and idle active workers cost the same."""
+        self._tick()
+        return self.active_seconds, self.waking_seconds
+
+    def _tick(self) -> None:
+        """Add cost since the last tick. Call before every change to `active` or `waking`."""
+        elapsed = self.sim.now - self._last_tick
+        self.active_seconds += self.active * elapsed
+        self.waking_seconds += self.waking * elapsed
+        self._last_tick = self.sim.now
+
     def _wake_done(self) -> None:
+        self._tick()
         self.waking -= 1
         self.active += 1
         if self.queue:
