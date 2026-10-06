@@ -64,6 +64,7 @@ def test_check_catches_corrupted_state():
     sim = Simulator()
     pool = WorkerPool(sim, num_workers=1, service_time=1.0)
     pool.busy = 1  # pretend the worker is busy, but nothing is running
+    pool.idle_since.pop()  # keep the pretense consistent: a busy worker isn't idle
     pool.submit(Request(id="0"))  # queues fine: busy == num_workers
     pool.busy = 0  # now a request waits while a worker is idle
     with pytest.raises(AssertionError, match="waiting while a worker is idle"):
@@ -194,3 +195,48 @@ def test_on_change_fires_on_wake_done_but_not_wake_or_sleep():
     sim.run()
     # wake() and sleep() are the policy's own actions; only the wake completing is news.
     assert seen == [3.0]
+
+
+def test_idle_since_records_when_each_idle_worker_went_idle():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    pool.submit(Request(id="0"))
+    sim.run()
+    # The untouched worker has been idle since t=0; the one that served has been idle since it finished.
+    assert list(pool.idle_since) == [0.0, 1.0]
+
+
+def test_reuses_most_recently_idle_worker():
+    # Steady load: 1 request every 2s, each takes 1s. LIFO gives every request to the same worker,
+    # so the other stays idle since t=0 and can later time out. (FIFO would alternate them.)
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    for t in range(0, 100, 2):
+        sim.schedule(t, lambda t=t: pool.submit(Request(id=str(t))), name="arrive")
+    sim.run()
+    assert list(pool.idle_since) == [0.0, 99.0]
+
+
+def test_sleep_takes_longest_idle_worker():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    pool.submit(Request(id="0"))
+    sim.run(until=2.0)
+    pool.sleep(1)
+    assert list(pool.idle_since) == [1.0]  # the worker idle since t=0 went to sleep
+
+
+def test_woken_worker_with_no_queue_is_idle_from_wake_done():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0, wake_delay=3.0, initial_active=0)
+    pool.wake(1)
+    sim.run()
+    assert list(pool.idle_since) == [3.0]
+
+
+def test_check_catches_idle_since_out_of_sync():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    pool.idle_since.pop()  # 2 idle workers, but only 1 recorded
+    with pytest.raises(AssertionError, match="idle_since"):
+        pool._check()

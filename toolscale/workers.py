@@ -42,6 +42,9 @@ class WorkerPool:
         # Called (as a zero-delay event) when the pool changes on its own: arrival, finish, wake done.
         # Not on wake()/sleep(): the caller already knows, and notifying would let a policy loop on itself.
         self.on_change: Callable[[], None] | None = None
+        # When each idle active worker went idle, oldest first. New work goes to the most recently idle
+        # worker (LIFO), so the longest-idle ones stay untouched and an idle timeout can actually fire.
+        self.idle_since: deque[float] = deque([sim.now] * self.active)
         self._check()
 
     def submit(self, req: Request) -> None:
@@ -49,6 +52,7 @@ class WorkerPool:
         req.arrival = self.sim.now
         if self.busy < self.active:
             self.busy += 1
+            self.idle_since.pop()
             self._start(req)
         else:
             self.queue.append(req)
@@ -66,8 +70,10 @@ class WorkerPool:
         self._check()
 
     def sleep(self, n: int) -> None:
-        """Put up to `n` idle active workers to sleep, instantly. Busy and waking workers are skipped."""
+        """Put up to `n` idle active workers to sleep, instantly, longest-idle first. Busy and waking workers are skipped."""
         n = min(n, self.active - self.busy)
+        for _ in range(n):
+            self.idle_since.popleft()
         self._tick()
         self.active -= n
         self.sleeping += n
@@ -93,6 +99,8 @@ class WorkerPool:
             # Serve the line immediately, so no request waits while this worker sits idle.
             self.busy += 1
             self._start(self.queue.popleft())
+        else:
+            self.idle_since.append(self.sim.now)
         self._check()
         self._notify()
 
@@ -102,6 +110,7 @@ class WorkerPool:
         assert self.active + self.waking + self.sleeping == self.num_workers, "workers appeared or vanished"
         assert 0 <= self.busy <= self.active, f"busy={self.busy} out of range"
         assert not self.queue or self.busy == self.active, "request waiting while a worker is idle"
+        assert len(self.idle_since) == self.active - self.busy, "idle_since out of sync with idle workers"
 
     def _notify(self) -> None:
         """Schedule `on_change` rather than call it, so the listener runs after this change (and any
@@ -120,6 +129,7 @@ class WorkerPool:
             self._start(self.queue.popleft())
         else:
             self.busy -= 1
+            self.idle_since.append(self.sim.now)
         self._check()
         self._notify()
         if req.on_done:
