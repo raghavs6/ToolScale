@@ -38,3 +38,23 @@ def test_agent_with_no_tools_makes_one_request():
     agent.start()
     sim.run()
     assert times(agent) == [(0.0, 0.0, 1.0)]
+
+
+def test_on_finished_called_once_at_last_inference():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    seen = []
+    agent = Agent(sim, pool, agent_id=0, tool_durations=[2.0, 3.0], on_finished=lambda a: seen.append((a, sim.now)))
+    agent.start()
+    sim.run()
+    assert seen == [(agent, 8.0)]  # inferences finish at 1, 4, 8; only the last one ends the agent
+
+
+def test_on_finished_for_agent_with_no_tools():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    seen = []
+    agent = Agent(sim, pool, agent_id=0, tool_durations=[], on_finished=lambda a: seen.append(sim.now))
+    agent.start()
+    sim.run()
+    assert seen == [1.0]
