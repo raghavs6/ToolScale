@@ -6,6 +6,8 @@ A daily log, newest first. Each entry says what was built and why.
 
 Chose event-driven policies over a periodic tick: a tick adds made-up observation delay that hurts the reactive baseline more than forecasting policies. `WorkerPool` now notifies an `on_change` listener (as a zero-delay event, so a burst is seen whole) on arrivals, finishes, and completed wakes, but not on `wake()`/`sleep()`, which would let a policy re-trigger itself forever. Added `ReactivePolicy` with a queue threshold and an optional drain-aware check; an experiment showed neither variant dominates (drain-aware skips wasted wakes but is slower when a second burst follows), so both are kept as baselines.
 
+The reactive policy now also sleeps workers idle for `idle_timeout`. To make that work, the pool records when each idle worker went idle and hands new work to the most recently idle one (LIFO); with FIFO, a steady trickle rotates through every worker and none ever times out. The policy keeps at most one timer, for the oldest idle worker's deadline. Added `workloads.generate`: seeded traces (agent start times, lognormal tool durations) drawn up front, because drawing randomness mid-simulation was shown to hand different policies different tool durations from the same seed.
+
 ## 2026-10-02
 
 `WorkerPool` now meters capacity cost: `worker_seconds()` returns active and waking worker-seconds, updated whenever the worker counts change. Design decision: idle active workers cost the same as busy ones, and waking time is tracked separately so experiments can report the cost of wasted wakes on their own.
