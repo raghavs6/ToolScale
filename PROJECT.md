@@ -46,7 +46,7 @@ The discrete-event simulator models agents cycling through inference requests an
 ## Policies to compare
 
 1. **Fixed capacity:** Keep a fixed number of workers active; provides a simple latency/cost reference.
-2. **Reactive:** Wake workers when queue length or utilization exceeds a threshold; sleep after an idle timeout.
+2. **Reactive:** Wake workers when queue length or utilization exceeds a threshold; sleep after an idle timeout. Two variants: *simple* (one worker per request waiting beyond the threshold) and *drain-aware* (skip waking when active workers will clear the line before a wake lands). Neither dominates: drain-aware avoids wasted wakes but reacts later when a second burst follows, so evaluation compares against both.
 3. **History-based:** Forecast returns from past tool durations and starts, without live progress.
 4. **Progress-aware (proposed):** Forecast near-term returns from each running tool's latest progress, elapsed time, and tool type. Combine expected returns with queued demand and active service capacity. Wake workers if the estimated shortfall during the wake horizon exceeds a threshold; use a cooldown/idle timeout to avoid oscillation.
 5. **Oracle:** Know future tool completion times; use only as an upper-bound reference, never as an attainable baseline.

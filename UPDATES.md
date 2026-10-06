@@ -2,6 +2,10 @@
 
 A daily log, newest first. Each entry says what was built and why.
 
+## 2026-10-05
+
+Chose event-driven policies over a periodic tick: a tick adds made-up observation delay that hurts the reactive baseline more than forecasting policies. `WorkerPool` now notifies an `on_change` listener (as a zero-delay event, so a burst is seen whole) on arrivals, finishes, and completed wakes, but not on `wake()`/`sleep()`, which would let a policy re-trigger itself forever. Added `ReactivePolicy` with a queue threshold and an optional drain-aware check; an experiment showed neither variant dominates (drain-aware skips wasted wakes but is slower when a second burst follows), so both are kept as baselines.
+
 ## 2026-10-02
 
 `WorkerPool` now meters capacity cost: `worker_seconds()` returns active and waking worker-seconds, updated whenever the worker counts change. Design decision: idle active workers cost the same as busy ones, and waking time is tracked separately so experiments can report the cost of wasted wakes on their own.
