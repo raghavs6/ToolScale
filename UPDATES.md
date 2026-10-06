@@ -2,6 +2,10 @@
 
 A daily log, newest first. Each entry says what was built and why.
 
+## 2026-10-02
+
+`WorkerPool` now meters capacity cost: `worker_seconds()` returns active and waking worker-seconds, updated whenever the worker counts change. Design decision: idle active workers cost the same as busy ones, and waking time is tracked separately so experiments can report the cost of wasted wakes on their own.
+
 ## 2026-10-01
 
 Added `WorkerPool` in `toolscale/workers.py`: identical always-on workers serve requests from a first-come-first-served queue, and each `Request` records its arrival, start, and finish times so wait and latency can be measured. Design decision: a finishing worker hands off directly to the next queued request, so a request arriving at the same instant can't cut ahead of one already waiting.
