@@ -91,6 +91,10 @@ toolscale/
 
 Treat the idea as unsupported if, on held-out realistic scenarios, progress awareness cannot lower p95 post-tool latency by **at least 15%** versus the strongest non-oracle baseline at **no more than 5%** extra active-worker seconds, or if gains disappear with plausible missing/noisy progress. Also stop pursuing live integration if observed wake delays are longer than the available warning for most returns. These are provisional decision thresholds, not claimed results; revise them before evaluation if actual system costs call for it.
 
+## Open questions
+
+- **Progress-aware decision cost at scale.** Policies run `decide()` on every pool notice (~210k calls at 5,000 agents × 20 tool calls). If the progress-aware `decide()` scans every running tool, that is ~10⁹ operations per run. Measure it at real experiment sizes once the policy exists; if slow, run `decide()` once per instant or update the forecast incrementally. Neither fix affects the pool or the reactive policy.
+
 ## Next steps
 
 Define the first workload and worker parameters; implement the minimal event simulator and two baseline policies; verify a small burst example by hand; then add progress signals and run the first paired comparison. Record assumptions and results in the repository so the project can be reproduced.
