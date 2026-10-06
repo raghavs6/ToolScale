@@ -39,6 +39,9 @@ class WorkerPool:
         self.active_seconds = 0.0
         self.waking_seconds = 0.0
         self._last_tick = sim.now
+        # Called (as a zero-delay event) when the pool changes on its own: arrival, finish, wake done.
+        # Not on wake()/sleep(): the caller already knows, and notifying would let a policy loop on itself.
+        self.on_change: Callable[[], None] | None = None
         self._check()
 
     def submit(self, req: Request) -> None:
@@ -50,6 +53,7 @@ class WorkerPool:
         else:
             self.queue.append(req)
         self._check()
+        self._notify()
 
     def wake(self, n: int) -> None:
         """Start waking up to `n` sleeping workers; each becomes active after `wake_delay`."""
@@ -90,6 +94,7 @@ class WorkerPool:
             self.busy += 1
             self._start(self.queue.popleft())
         self._check()
+        self._notify()
 
     def _check(self) -> None:
         """Invariants that must hold after every state change; fail loudly the moment one breaks."""
@@ -97,6 +102,12 @@ class WorkerPool:
         assert self.active + self.waking + self.sleeping == self.num_workers, "workers appeared or vanished"
         assert 0 <= self.busy <= self.active, f"busy={self.busy} out of range"
         assert not self.queue or self.busy == self.active, "request waiting while a worker is idle"
+
+    def _notify(self) -> None:
+        """Schedule `on_change` rather than call it, so the listener runs after this change (and any
+        others at the same instant) has finished, never in the middle of a pool method."""
+        if self.on_change:
+            self.sim.schedule(0.0, self.on_change, name="pool_change")
 
     def _start(self, req: Request) -> None:
         req.start = self.sim.now
@@ -110,5 +121,6 @@ class WorkerPool:
         else:
             self.busy -= 1
         self._check()
+        self._notify()
         if req.on_done:
             req.on_done(req)

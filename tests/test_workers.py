@@ -149,3 +149,48 @@ def test_busy_and_idle_workers_cost_the_same():
     pool.submit(Request(id="0"))
     sim.run(until=10.0)
     assert pool.worker_seconds() == (10.0, 0.0)  # 3s busy + 7s idle
+
+
+def test_on_change_sees_whole_burst():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    seen = []
+    pool.on_change = lambda: seen.append((sim.now, pool.busy, len(pool.queue)))
+    for i in range(3):
+        sim.schedule(5.0, lambda i=i: pool.submit(Request(id=str(i))), name=f"arrive{i}")
+    sim.run(until=5.0)
+    # All three arrivals run before the first notice, so it sees the full burst.
+    assert seen[0] == (5.0, 1, 2)
+
+
+def test_on_change_is_scheduled_not_called_inline():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    seen = []
+    pool.on_change = lambda: seen.append(sim.now)
+    pool.submit(Request(id="0"))
+    assert seen == []  # submit has returned, but the notice hasn't run yet
+    sim.run(until=0.0)
+    assert seen == [0.0]
+
+
+def test_on_change_fires_on_finish():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    seen = []
+    pool.on_change = lambda: seen.append(sim.now)
+    pool.submit(Request(id="0"))
+    sim.run()
+    assert seen == [0.0, 1.0]  # arrival, then finish
+
+
+def test_on_change_fires_on_wake_done_but_not_wake_or_sleep():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0, wake_delay=3.0, initial_active=1)
+    seen = []
+    pool.on_change = lambda: seen.append(sim.now)
+    pool.wake(1)
+    pool.sleep(1)
+    sim.run()
+    # wake() and sleep() are the policy's own actions; only the wake completing is news.
+    assert seen == [3.0]
