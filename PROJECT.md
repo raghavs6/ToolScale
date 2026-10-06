@@ -95,6 +95,9 @@ Treat the idea as unsupported if, on held-out realistic scenarios, progress awar
 
 - **Progress-aware decision cost at scale.** Policies run `decide()` on every pool notice (~210k calls at 5,000 agents × 20 tool calls). If the progress-aware `decide()` scans every running tool, that is ~10⁹ operations per run. Measure it at real experiment sizes once the policy exists; if slow, run `decide()` once per instant or update the forecast incrementally. Neither fix affects the pool or the reactive policy.
 
+- **Drain-aware reactive ignores ongoing arrivals.** Its check (line clears within `wake_delay` using active workers) assumes no new requests, so under steady load it tolerates waits up to `wake_delay` (first comparison: max latency 22s = wake 20s + service 2s; worse than fixed at similar cost). The B2 tests only used isolated bursts. Fix (e.g. account for the arrival rate) or drop it before treating it as a baseline.
+- **Startup transient.** Every run starts with all workers awake, so reactive with a long `idle_timeout` pays up to `MAX_WORKERS × idle_timeout` before trimming (e.g. 40 × 300s = 12,000 worker-s of a 30,634 total). Decide on a warm-up exclusion or a different starting state before Milestone 4.
+
 ## Next steps
 
 Define the first workload and worker parameters; implement the minimal event simulator and two baseline policies; verify a small burst example by hand; then add progress signals and run the first paired comparison. Record assumptions and results in the repository so the project can be reproduced.
