@@ -74,3 +74,62 @@ def test_drain_aware_wakes_when_no_worker_is_active():
     pool.submit(req)
     sim.run()
     assert req.finish == 6.0
+
+
+def timer_times(sim):
+    return [t for t, name in sim.log if name == "policy_timer"]
+
+
+def test_idle_workers_sleep_after_timeout():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    ReactivePolicy(pool, threshold=0, idle_timeout=5.0)
+    pool.submit(Request(id="0"))
+    sim.run()
+    # Untouched worker idle since 0 sleeps at 5; the one that served is idle since 1 and sleeps at 6.
+    assert pool.sleeping == 2
+    assert pool.worker_seconds()[0] == 5.0 + 6.0
+
+
+def test_initially_idle_workers_sleep_without_any_request():
+    # No pool notice ever fires, so only the decide() at construction can set the first timer.
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    ReactivePolicy(pool, threshold=0, idle_timeout=5.0)
+    sim.run()
+    assert pool.sleeping == 2
+    assert pool.worker_seconds()[0] == 10.0
+
+
+def test_spare_worker_sleeps_under_steady_load_with_few_timers():
+    # 1 request every 2s, 1s each: one worker carries it all (LIFO), the spare sleeps at t=5.
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    ReactivePolicy(pool, threshold=0, idle_timeout=5.0)
+    for t in range(0, 100, 2):
+        sim.schedule(t, lambda t=t: pool.submit(Request(id=str(t))), name="arrive")
+    sim.run()
+    assert pool.worker_seconds()[0] == 5.0 + 104.0  # spare until 5; worker idle since 99 sleeps at 104
+    notices = sum(1 for _, name in sim.log if name == "pool_change")
+    assert len(timer_times(sim)) < notices / 4  # about one per timeout window, not one per notice
+
+
+def test_timer_that_fires_a_hair_early_refires_on_the_deadline():
+    # Delay = deadline - now, and now + (deadline - now) rounds one step short for these exact values.
+    now, deadline = 260.4923103919594, 805.0278270130224
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)  # idle since t=0
+    sim.run(until=now)
+    ReactivePolicy(pool, threshold=0, idle_timeout=deadline)  # sets its first timer at `now`
+    sim.run()
+    assert timer_times(sim) == [805.0278270130223, deadline]  # early, then exact
+    assert pool.sleeping == 1
+    assert pool.worker_seconds()[0] == deadline
+
+
+def test_drain_aware_still_sleeps_idle_workers():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=2, service_time=1.0)
+    ReactivePolicy(pool, threshold=0, drain_aware=True, idle_timeout=5.0)
+    sim.run()
+    assert pool.sleeping == 2
