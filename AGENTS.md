@@ -21,7 +21,7 @@ So: I understand distributed systems concepts and protocol reasoning reasonably 
 - Name tradeoffs on both sides, then recommend. Don't pick silently.
 - Let me participate in architecture and important design decisions.
 - Wait for my go. Then write the code — implement aggressively; don't make me type code or boilerplate for learning's sake.
-- Verify against the step's stated check. Then commit. Then the next step.
+- Verify against the step's stated check. Then commit and open a PR. Then the next step.
 - If an explanation is too big to hold in my head at once, the step is too big — split it.
 
 Section 7 covers *how* to explain. This section is about *when*.
@@ -43,6 +43,7 @@ Section 7 covers *how* to explain. This section is about *when*.
   ```
 - Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 - Commit often: one commit per verified step. The message says *why*, not just what.
+- One PR per verified step, on its own branch; never commit directly to `main`. The PR description explains the why, the design decisions, and how it was verified. If a step builds on an unmerged step, branch from that step's branch and base the PR on it.
 - Never batch several steps into one turn, even when they're each small.
 
 ## 3. Think before coding; push back
