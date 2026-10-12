@@ -46,8 +46,8 @@ The discrete-event simulator models agents cycling through inference requests an
 ## Policies to compare
 
 1. **Fixed capacity:** Keep a fixed number of workers active; provides a simple latency/cost reference.
-2. **Reactive:** Wake workers when queue length or utilization exceeds a threshold; sleep after an idle timeout. Two variants: *simple* (one worker per request waiting beyond the threshold) and *drain-aware* (skip waking when active workers will clear the line before a wake lands). Neither dominates: drain-aware avoids wasted wakes but reacts later when a second burst follows, so evaluation compares against both.
-3. **History-based:** Forecast returns from past tool durations and starts, without live progress.
+2. **Reactive:** Wake one worker per request waiting beyond a threshold; sleep after an idle timeout. Uses only the pool's current state. A *drain-aware* variant (skip waking if active workers clear the line before a wake lands) was dropped: a queue snapshot can't tell a burst that's ending from steady load that isn't, so the check needs a forecast of arrivals, which makes it a forecasting policy, not a reactive one.
+3. **History-based:** Forecast returns from past tool durations and starts, without live progress. A first variant: forecast arrivals during the wake horizon from the recent arrival rate, using the same "line + expected arrivals vs. active capacity" decision rule progress-aware will use, so the two differ only in their forecast.
 4. **Progress-aware (proposed):** Forecast near-term returns from each running tool's latest progress, elapsed time, and tool type. Combine expected returns with queued demand and active service capacity. Wake workers if the estimated shortfall during the wake horizon exceeds a threshold; use a cooldown/idle timeout to avoid oscillation.
 5. **Oracle:** Know future tool completion times; use only as an upper-bound reference, never as an attainable baseline.
 
@@ -95,7 +95,6 @@ Treat the idea as unsupported if, on held-out realistic scenarios, progress awar
 
 - **Progress-aware decision cost at scale.** Policies run `decide()` on every pool notice (~210k calls at 5,000 agents × 20 tool calls). If the progress-aware `decide()` scans every running tool, that is ~10⁹ operations per run. Measure it at real experiment sizes once the policy exists; if slow, run `decide()` once per instant or update the forecast incrementally. Neither fix affects the pool or the reactive policy.
 
-- **Drain-aware reactive ignores ongoing arrivals.** Its check (line clears within `wake_delay` using active workers) assumes no new requests, so under steady load it tolerates waits up to `wake_delay` (first comparison: max latency 22s = wake 20s + service 2s; worse than fixed at similar cost). The B2 tests only used isolated bursts. Fix (e.g. account for the arrival rate) or drop it before treating it as a baseline.
 - **Startup transient.** Every run starts with all workers awake, so reactive with a long `idle_timeout` pays up to `MAX_WORKERS × idle_timeout` before trimming (e.g. 40 × 300s = 12,000 worker-s of a 30,634 total). Decide on a warm-up exclusion or a different starting state before Milestone 4.
 
 ## Next steps
