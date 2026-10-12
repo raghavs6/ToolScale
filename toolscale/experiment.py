@@ -26,11 +26,14 @@ def run_policy(
     wake_delay: float,
     make_policy: Callable[[WorkerPool], object] | None = None,
 ) -> Result:
-    """Replay `trace` on a fresh pool with every worker awake. `make_policy(pool)` attaches a policy;
-    None means fixed capacity (nobody ever wakes or sleeps)."""
+    """Replay `trace` on a fresh pool. `make_policy(pool)` attaches a policy; None means fixed capacity
+    (nobody ever wakes or sleeps). Fixed starts with every worker awake, by definition; a policy starts with
+    every worker asleep, since the workload starts empty and any warmer start would bill the policy for
+    capacity it never chose."""
     assert trace, "empty trace: the cost meter would never be read"
     sim = Simulator()
-    pool = WorkerPool(sim, num_workers=num_workers, service_time=service_time, wake_delay=wake_delay)
+    initial_active = 0 if make_policy else num_workers
+    pool = WorkerPool(sim, num_workers, service_time, wake_delay, initial_active=initial_active)
     if make_policy:
         make_policy(pool)
 
