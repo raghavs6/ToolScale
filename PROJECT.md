@@ -57,7 +57,7 @@ Start the progress-aware estimator with a transparent rule, such as remaining ti
 
 **Primary:** p95 time from tool completion to the next inference response, and total active-worker seconds (capacity cost). **Secondary:** p50/p99 response latency, queue length/spike duration, wakes per hour, time spent waking, forecast error and calibration, and missed or unnecessary wakes.
 
-Run paired simulations across steady and bursty workloads. Vary tool-duration spread, completion synchronization, progress-update frequency, progress noise/bias, missing signals, wake delay, worker service rate, and utilization. Include workloads where progress is uninformative. Compare policies at similar capacity cost and also plot latency versus active-worker seconds. Report multiple seeds with uncertainty intervals; keep tuning and evaluation scenarios separate. If possible, replay anonymized real tool traces after the synthetic study.
+Run paired simulations across steady and bursty workloads. Vary tool-duration spread, completion synchronization, progress-update frequency, progress noise/bias, missing signals, wake delay, worker service rate, and utilization. Include workloads where progress is uninformative. Compare policies at similar capacity cost and also plot latency versus active-worker seconds. Report multiple seeds with uncertainty intervals; keep tuning and evaluation scenarios separate. Fixed capacity starts with its workers awake; every other policy starts with all workers asleep, since the workload starts empty and a warmer start would bill the policy for capacity it never chose (all-awake added up to 8,379 worker-s to reactive idle=300s). No warm-up period is discarded: the workload has no steady state, and its ramp-up is real demand. If possible, replay anonymized real tool traces after the synthetic study.
 
 ## Milestones
 
@@ -95,7 +95,7 @@ Treat the idea as unsupported if, on held-out realistic scenarios, progress awar
 
 - **Progress-aware decision cost at scale.** Policies run `decide()` on every pool notice (~210k calls at 5,000 agents × 20 tool calls). If the progress-aware `decide()` scans every running tool, that is ~10⁹ operations per run. Measure it at real experiment sizes once the policy exists; if slow, run `decide()` once per instant or update the forecast incrementally. Neither fix affects the pool or the reactive policy.
 
-- **Startup transient.** Every run starts with all workers awake, so reactive with a long `idle_timeout` pays up to `MAX_WORKERS × idle_timeout` before trimming (e.g. 40 × 300s = 12,000 worker-s of a 30,634 total). Decide on a warm-up exclusion or a different starting state before Milestone 4.
+- **First-request waits are unmeasured.** Each agent's first request is excluded from latency, so under a cold start the ~`wake_delay` wait of the earliest requests never shows up. Fair across dynamic policies, but report it as its own column in the full results table.
 
 ## Next steps
 
