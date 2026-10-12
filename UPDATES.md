@@ -2,6 +2,10 @@
 
 A daily log, newest first. Each entry says what was built and why.
 
+## 2026-10-12
+
+Dropped the drain-aware variant from `ReactivePolicy`; simple reactive is now the only reactive baseline. Its check ignored ongoing arrivals, and fixing that needs a forecast of arrivals, because a queue snapshot looks the same whether a burst is ending or steady load continues. That makes it a forecasting policy, so the arrival-rate fix moves to the history-based baseline, where it can share progress-aware's decision rule and differ only in its forecast.
+
 ## 2026-10-05
 
 Ran the first comparison (`experiments/run.py`, one seed, placeholder settings): simple reactive beat fixed on both latency and cost at matched points (e.g. p95 2.00s at 16,731 worker-s vs fixed N=14's 2.55s at 16,860), but drain-aware did worse than fixed: under steady load it lets requests wait up to `wake_delay`, because its "line clears before a wake lands" check ignores requests that keep arriving. Cost is billed only until the last request finishes (`Agent.on_finished`), since billing to the end of the run added up to 4.1% to reactive. Reactive wins because the load ramps up, peaks, and trails off (sampled busy workers: 3 at t=100s, 17 at 300s, 0 at 1100s); fixed N=14 overpays at the ends and queues at the peaks. Long idle timeouts are inflated by the startup state (all 40 workers awake at t=0: up to 12,000 of reactive idle=300s's 30,634 worker-s).

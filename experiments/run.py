@@ -21,14 +21,13 @@ def main() -> None:
     runs = []
     for n in range(8, 31, 2):
         runs.append((f"fixed N={n}", run_policy(trace, n, SERVICE_TIME, WAKE_DELAY)))
-    for drain_aware in (False, True):
-        for idle_timeout in (10.0, 30.0, 60.0, 120.0, 300.0):
-            name = f"reactive {'drain' if drain_aware else 'simple'} idle={idle_timeout:.0f}s"
+    for idle_timeout in (10.0, 30.0, 60.0, 120.0, 300.0):
+        name = f"reactive idle={idle_timeout:.0f}s"
 
-            def make_policy(pool, drain_aware=drain_aware, idle_timeout=idle_timeout):
-                return ReactivePolicy(pool, threshold=0, drain_aware=drain_aware, idle_timeout=idle_timeout)
+        def make_policy(pool, idle_timeout=idle_timeout):
+            return ReactivePolicy(pool, threshold=0, idle_timeout=idle_timeout)
 
-            runs.append((name, run_policy(trace, MAX_WORKERS, SERVICE_TIME, WAKE_DELAY, make_policy)))
+        runs.append((name, run_policy(trace, MAX_WORKERS, SERVICE_TIME, WAKE_DELAY, make_policy)))
 
     print(f"{'policy':<28} {'p95 latency':>12} {'active worker-s':>16} {'waking worker-s':>16} {'last finish':>12}")
     for name, r in sorted(runs, key=lambda run: run[1].active_seconds):
