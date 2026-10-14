@@ -45,9 +45,12 @@ class Agent:
             if self.on_tool_start:
                 self.on_tool_start(return_time)
             warning = self.warnings[step] if step < len(self.warnings) else 0.0
-            if warning > 0 and self.on_tool_signal:
-                # A warning longer than the tool fires as the tool starts.
+            if warning >= duration and self.on_tool_signal:
+                # A warning at least as long as the tool arrives with its start, before the pool's notice of the
+                # finished inference runs the policy, as on_tool_start does. A zero-delay event would arrive after.
+                self.on_tool_signal(return_time)
+            elif warning > 0 and self.on_tool_signal:
                 signal = self.on_tool_signal
-                self.sim.schedule(max(duration - warning, 0.0), lambda: signal(return_time), name=f"signal_{req.id}")
+                self.sim.schedule(duration - warning, lambda: signal(return_time), name=f"signal_{req.id}")
         elif self.on_finished:
             self.on_finished(self)

@@ -66,17 +66,21 @@ class HistoryPolicy:
         re-woken: at a 20s wake delay that cost more than reactive at every headroom.
         """
         pool = self.pool
-        s, w = pool.service_time, pool.wake_delay
+        s = pool.service_time
         elapsed = [now - start for start, _ in self.running]
         peak = float(pool.busy + len(pool.queue))
-        steps = max(1, round(w / s))
-        for j in range(1, steps + 1):
-            ahead = w * j / steps
+        for ahead in self._check_aheads(now):
             t = now + ahead
             still_busy = sum(1 for r in pool.serving if r.start + s > t)
             starting = bisect.bisect_right(self.starts, t) - bisect.bisect_right(self.starts, max(t - s, now))
             peak = max(peak, still_busy + len(pool.queue) + starting + self._returning(elapsed, ahead, t))
         return peak
+
+    def _check_aheads(self, now: float) -> list[float]:
+        """How far ahead of now to check demand: evenly spaced, ending where a wake started now would land."""
+        w = self.pool.wake_delay
+        steps = max(1, round(w / self.pool.service_time))
+        return [w * j / steps for j in range(1, steps + 1)]
 
     def _returning(self, elapsed: list[float], ahead: float, t: float) -> float:
         """Expected requests from running tools arriving in the service time before t, which is `ahead` from now."""

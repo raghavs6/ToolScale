@@ -32,6 +32,12 @@ class ProgressPolicy(HistoryPolicy):
         del self.known[: bisect.bisect_right(self.known, self.pool.sim.now)]
         super().decide()
 
+    def _check_aheads(self, now: float) -> list[float]:
+        # Demand peaks at returns. History's evenly spaced checks suit its smooth guess but can fall between two
+        # known returns, so also check at each one before the landing time, as the oracle does.
+        end = bisect.bisect_right(self.known, now + self.pool.wake_delay)
+        return super()._check_aheads(now) + [ret - now for ret in self.known[:end]]
+
     def _returning(self, elapsed: list[float], ahead: float, t: float) -> float:
         known = bisect.bisect_right(self.known, t) - bisect.bisect_right(self.known, t - self.pool.service_time)
         return super()._returning(elapsed, ahead, t) + known

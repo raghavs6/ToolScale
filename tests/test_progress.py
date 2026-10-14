@@ -53,3 +53,11 @@ def test_does_not_peek_before_the_warning():
 
     assert decisions(30.0) == decisions(40.0)
     assert len(decisions(30.0)) > 25  # it really was deciding throughout, tick by tick
+
+
+def test_keeps_a_worker_for_a_known_return_between_check_times():
+    # The second tool runs 19-21.7 and warns at its start. History checks demand only at 19+2.5 and 19+5, each
+    # covering the 2s before it, and 21.7 falls between those windows. The known return must still keep the idle
+    # worker awake: sleeping it at 19 would make the request at 21.7 wait for a wake.
+    result = run([AgentTrace(start=0.0, tool_durations=[10.0, 2.7], warnings=[10.0, 2.7])])
+    assert result.latencies == [2.0, 2.0]
