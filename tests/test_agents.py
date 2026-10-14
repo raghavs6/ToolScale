@@ -70,3 +70,18 @@ def test_on_tool_start_reports_return_time():
     # Tools start when inferences finish (t=1, t=4) and return 2s and 3s later, when the next requests arrive.
     assert seen == [(1.0, 3.0), (4.0, 7.0)]
     assert [t for _, t in seen] == [r.arrival for r in agent.requests[1:]]
+
+
+def test_on_tool_signal_fires_a_warning_ahead_of_each_warning_tool():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    seen = []
+    agent = Agent(
+        sim, pool, agent_id=0, tool_durations=[5.0, 3.0, 2.0], warnings=[2.0, 0.0, 9.0],
+        on_tool_signal=lambda t: seen.append((sim.now, t)),
+    )
+    agent.start()
+    sim.run()
+    # Tools run 1-6, 7-10, 11-13. The first warns 2s ahead; the second is silent; the third's 9s warning is
+    # longer than the tool, so it fires as the tool starts.
+    assert seen == [(4.0, 6.0), (11.0, 13.0)]
