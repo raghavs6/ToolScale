@@ -50,3 +50,18 @@ def test_same_trace_gives_same_tool_durations_under_any_capacity():
     for got_1, got_3, a in zip(tools_1, tools_3, trace):
         assert got_1 == pytest.approx(a.tool_durations)  # ...yet each agent's tools took the same time
         assert got_3 == pytest.approx(a.tool_durations)
+
+
+def test_warnings_leave_starts_and_durations_unchanged():
+    plain = generate(seed=3, **SETTINGS)
+    warned = generate(seed=3, **SETTINGS, warn_share=0.5, warning=1.0)
+    assert [(a.start, a.tool_durations) for a in warned] == [(a.start, a.tool_durations) for a in plain]
+    assert all(a.warnings == [] for a in plain)
+
+
+def test_warn_share_of_tools_warn():
+    trace = generate(seed=3, num_agents=100, tool_calls_per_agent=100, median=30.0, spread=0.5, start_window=0.0,
+                     warn_share=0.25, warning=2.0)
+    warnings = [w for a in trace for w in a.warnings]
+    assert set(warnings) == {0.0, 2.0}
+    assert warnings.count(2.0) / len(warnings) == pytest.approx(0.25, abs=0.02)
