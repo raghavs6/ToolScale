@@ -2,6 +2,12 @@
 
 A daily log, newest first. Each entry says what was built and why.
 
+## 2026-10-14
+
+Added an oracle policy (`OraclePolicy`): it is told each tool's return time when the tool starts and wakes workers to land just in time, so it bounds what any return forecast, progress-aware included, could gain. `experiments/run.py` now runs fixed, reactive, and oracle at wake delays of 0.5s, 5s (the range of real vLLM sleep-mode wakes) and 20s, judges cost as active + waking worker-s, and adds reactive idle timeouts down to 0s, without which reactive was unfairly weak at short wake delays. On one seed, the oracle clears the kill criterion's bar (p95 at least 15% lower at no more than 5% extra cost) at 0.5s (p95 2.00s at 9,572 worker-s vs reactive idle=0s's 2.50s at 9,795) and at 5s (2.00s at 12,951; no reactive point is that cheap, and the nearest, idle=5s, is 2.87s at 13,956), but not at 20s, where reactive idle=30s also reaches 2.00s for only 4% more (16,595 vs 15,963). So the ceiling is real, and it is largest when wakes are fast, which is also when a forecast needs the least warning: about one wake delay.
+
+**Next:** check the result across seeds, then decide between the history-based baseline and progress-aware with realistic warning.
+
 ## 2026-10-12
 
 Dropped the drain-aware variant from `ReactivePolicy`; simple reactive is now the only reactive baseline. Its check ignored ongoing arrivals, and fixing that needs a forecast of arrivals, because a queue snapshot looks the same whether a burst is ending or steady load continues. That makes it a forecasting policy, so the arrival-rate fix moves to the history-based baseline, where it can share progress-aware's decision rule and differ only in its forecast.
