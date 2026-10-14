@@ -58,3 +58,15 @@ def test_on_finished_for_agent_with_no_tools():
     agent.start()
     sim.run()
     assert seen == [1.0]
+
+
+def test_on_tool_start_reports_return_time():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    seen = []
+    agent = Agent(sim, pool, agent_id=0, tool_durations=[2.0, 3.0], on_tool_start=lambda t: seen.append((sim.now, t)))
+    agent.start()
+    sim.run()
+    # Tools start when inferences finish (t=1, t=4) and return 2s and 3s later, when the next requests arrive.
+    assert seen == [(1.0, 3.0), (4.0, 7.0)]
+    assert [t for _, t in seen] == [r.arrival for r in agent.requests[1:]]
