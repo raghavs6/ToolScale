@@ -34,6 +34,7 @@ class WorkerPool:
         self.waking = 0
         self.sleeping = num_workers - self.active
         self.busy = 0  # active workers currently serving a request
+        self.serving: list[Request] = []  # the requests those workers are serving
         self.queue: deque[Request] = deque()
         # Cost meter: worker-seconds spent active and waking, brought up to date at `_last_tick`.
         self.active_seconds = 0.0
@@ -120,10 +121,12 @@ class WorkerPool:
 
     def _start(self, req: Request) -> None:
         req.start = self.sim.now
+        self.serving.append(req)
         self.sim.schedule(self.service_time, lambda: self._finish(req), name=f"finish_{req.id}")
 
     def _finish(self, req: Request) -> None:
         req.finish = self.sim.now
+        self.serving.remove(req)
         if self.queue:
             # Hand the worker straight to the next in line, so a same-time arrival can't cut ahead.
             self._start(self.queue.popleft())

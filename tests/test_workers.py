@@ -240,3 +240,16 @@ def test_check_catches_idle_since_out_of_sync():
     pool.idle_since.pop()  # 2 idle workers, but only 1 recorded
     with pytest.raises(AssertionError, match="idle_since"):
         pool._check()
+
+
+def test_serving_lists_requests_in_service():
+    sim = Simulator()
+    pool = WorkerPool(sim, num_workers=1, service_time=1.0)
+    a, b = Request(id="a"), Request(id="b")
+    pool.submit(a)
+    pool.submit(b)  # waits behind a
+    assert pool.serving == [a]
+    sim.run(until=1.0)
+    assert pool.serving == [b]  # handed straight over at a's finish
+    sim.run()
+    assert pool.serving == []
