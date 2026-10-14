@@ -34,8 +34,9 @@ def run_policy(
     sim = Simulator()
     initial_active = 0 if make_policy else num_workers
     pool = WorkerPool(sim, num_workers, service_time, wake_delay, initial_active=initial_active)
-    if make_policy:
-        make_policy(pool)
+    policy = make_policy(pool) if make_policy else None
+    # A policy that wants to know when tools will return (the oracle) defines tool_started; others ignore it.
+    on_tool_start = getattr(policy, "tool_started", None)
 
     # Stop the cost meter when the last agent finishes. The run itself may go on (idle workers waiting out
     # their timeout), but that tail isn't a cost of serving the workload.
@@ -49,7 +50,10 @@ def run_policy(
             active, waking = pool.worker_seconds()
             end = sim.now
 
-    agents = [Agent(sim, pool, i, a.tool_durations, on_finished=finished) for i, a in enumerate(trace)]
+    agents = [
+        Agent(sim, pool, i, a.tool_durations, on_finished=finished, on_tool_start=on_tool_start)
+        for i, a in enumerate(trace)
+    ]
     for agent, a in zip(agents, trace):
         sim.schedule(a.start, agent.start, name="agent_start")
     sim.run()

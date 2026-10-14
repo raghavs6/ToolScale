@@ -54,3 +54,18 @@ def test_same_trace_same_result():
         )
 
     assert run() == run()
+
+
+def test_run_policy_tells_policy_when_tools_return():
+    returns = []
+
+    class Listener:
+        def __init__(self, pool):
+            pool.wake(pool.sleeping)  # serve the trace; this test is about the notice, not the policy
+
+        def tool_started(self, return_time):
+            returns.append(return_time)
+
+    run_policy(COLLIDE, num_workers=2, service_time=1.0, wake_delay=5.0, make_policy=Listener)
+    # Both workers land at 5 and serve the first requests 5-6; the tools return at 6+3 and 6+2.
+    assert sorted(returns) == [8.0, 9.0]
