@@ -16,7 +16,8 @@ def test_fixed_hand_example():
 
 
 def test_cost_meter_stops_at_last_finish():
-    # The last request finishes at t=5, but idle workers keep billing until they time out near t=105.
+    # Cold start: both workers wake at 0 and land at 5. The last request finishes at t=10, but idle workers
+    # keep billing until they time out near t=110.
     result = run_policy(
         COLLIDE,
         num_workers=2,
@@ -24,8 +25,20 @@ def test_cost_meter_stops_at_last_finish():
         wake_delay=5.0,
         make_policy=lambda pool: ReactivePolicy(pool, threshold=0, idle_timeout=100.0),
     )
-    assert result.end == 5.0
-    assert result.active_seconds == 2 * 5.0
+    assert result.end == 10.0
+    assert result.active_seconds == 2 * (10.0 - 5.0)
+    assert result.waking_seconds == 2 * 5.0
+
+
+def test_policy_starts_cold():
+    seen = []
+
+    def make_policy(pool):
+        seen.append((pool.active, pool.sleeping))
+        return ReactivePolicy(pool, threshold=0, idle_timeout=100.0)
+
+    run_policy(COLLIDE, num_workers=2, service_time=1.0, wake_delay=5.0, make_policy=make_policy)
+    assert seen == [(0, 2)]  # fixed starts warm instead: see test_fixed_hand_example's cost from t=0
 
 
 def test_same_trace_same_result():
