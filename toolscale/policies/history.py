@@ -75,6 +75,9 @@ class HistoryPolicy:
             t = now + ahead
             still_busy = sum(1 for r in pool.serving if r.start + s > t)
             starting = bisect.bisect_right(self.starts, t) - bisect.bisect_right(self.starts, max(t - s, now))
-            returning = expected_returns(elapsed, self.past, ahead - s, ahead)
-            peak = max(peak, still_busy + len(pool.queue) + starting + returning)
+            peak = max(peak, still_busy + len(pool.queue) + starting + self._returning(elapsed, ahead, t))
         return peak
+
+    def _returning(self, elapsed: list[float], ahead: float, t: float) -> float:
+        """Expected requests from running tools arriving in the service time before t, which is `ahead` from now."""
+        return expected_returns(elapsed, self.past, ahead - self.pool.service_time, ahead)
