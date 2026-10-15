@@ -37,6 +37,7 @@ def run_policy(
     policy = make_policy(pool) if make_policy else None
     # A policy that wants to know when tools will return (the oracle) defines tool_started; others ignore it.
     on_tool_start = getattr(policy, "tool_started", None)
+    on_tool_signal = getattr(policy, "tool_signaled", None)  # only progress-aware listens for warnings
 
     # Stop the cost meter when the last agent finishes. The run itself may go on (idle workers waiting out
     # their timeout), but that tail isn't a cost of serving the workload.
@@ -51,7 +52,9 @@ def run_policy(
             end = sim.now
 
     agents = [
-        Agent(sim, pool, i, a.tool_durations, on_finished=finished, on_tool_start=on_tool_start)
+        Agent(
+            sim, pool, i, a.tool_durations, finished, on_tool_start, warnings=a.warnings, on_tool_signal=on_tool_signal
+        )
         for i, a in enumerate(trace)
     ]
     for agent, a in zip(agents, trace):
