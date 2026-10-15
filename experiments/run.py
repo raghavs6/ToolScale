@@ -20,8 +20,26 @@ MAX_WORKERS = 40  # dynamic policies' provisioned pool; ~12.5 workers are busy o
 HISTORY_SEED_OFFSET = 1000  # history's past durations come from this other seed's trace, never the one replayed
 
 
-def workload(seed: int) -> list[AgentTrace]:
-    return generate(seed, num_agents=200, tool_calls_per_agent=20, median=30.0, spread=0.5, start_window=300.0)
+def workload(seed: int, warn_share: float = 0.0, warning: float = 0.0) -> list[AgentTrace]:
+    return generate(
+        seed,
+        num_agents=200,
+        tool_calls_per_agent=20,
+        median=30.0,
+        spread=0.5,
+        start_window=300.0,
+        warn_share=warn_share,
+        warning=warning,
+    )
+
+
+def forecast_idle_timeouts(wake_delay: float) -> tuple[float, ...]:
+    """Idle timeouts for the forecasting policies (history, progress-aware), shared so both get the same choices.
+
+    Longer than two wake delays just stays awake. 0 is the cheapest point, which a fair comparison needs: without
+    it, progress-aware at a 5s wake looked 24% better than history on seed 0 from that gap alone.
+    """
+    return (0.0, wake_delay, 2 * wake_delay)
 
 
 def run_all(seed: int, wake_delay: float) -> list[tuple[str, Result]]:
@@ -42,9 +60,8 @@ def run_all(seed: int, wake_delay: float) -> list[tuple[str, Result]]:
 
         name = f"reactive idle={idle_timeout:.0f}s"
         runs.append((name, run_policy(trace, MAX_WORKERS, SERVICE_TIME, wake_delay, make_reactive)))
-    # Idle timeouts of one and two wake delays: shorter re-wakes too often, longer just stays awake.
     for headroom in (0, 1, 2):
-        for idle_timeout in (wake_delay, 2 * wake_delay):
+        for idle_timeout in forecast_idle_timeouts(wake_delay):
 
             def make_history(pool, headroom=headroom, idle_timeout=idle_timeout):
                 return HistoryPolicy(pool, past, starts, headroom, idle_timeout)
