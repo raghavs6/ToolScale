@@ -33,3 +33,24 @@ def test_tool_longer_than_all_history_is_due_now():
 
 def test_no_running_tools():
     assert expected_returns([], [10.0], 0.0, 5.0) == 0.0
+
+
+def test_silent_tool_is_not_due_within_the_lead_if_every_tool_warns():
+    past = [10.0, 20.0, 30.0, 40.0]
+    # A tool 15s in that hasn't warned can't end in (15, 25]: a warning 10s ahead would have come. Of the
+    # durations it could still have (30, 40), one ends in (25, 35].
+    assert expected_returns([15.0], past, 0.0, 10.0, warn_share=1.0, lead=10.0) == 0.0
+    assert expected_returns([15.0], past, 10.0, 20.0, warn_share=1.0, lead=10.0) == pytest.approx(1 / 2)
+
+
+def test_partial_warning_share_weights_durations_within_the_lead():
+    past = [10.0, 20.0, 30.0, 40.0]
+    # Half of tools warn: the 20s duration counts as 0.5, the 30s and 40s fully, so 0.5 / 2.5 for (15, 25].
+    assert expected_returns([15.0], past, 0.0, 10.0, warn_share=0.5, lead=10.0) == pytest.approx(0.2)
+
+
+def test_no_warnings_is_the_plain_forecast():
+    past = [10.0, 20.0, 30.0, 40.0]
+    assert expected_returns([0.0, 15.0], past, 0.0, 10.0, warn_share=0.0, lead=10.0) == expected_returns(
+        [0.0, 15.0], past, 0.0, 10.0
+    )

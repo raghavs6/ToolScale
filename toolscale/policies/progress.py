@@ -2,18 +2,33 @@
 
 import bisect
 
+from toolscale.forecasting import expected_returns
 from toolscale.policies.history import HistoryPolicy
+from toolscale.workers import WorkerPool
 
 
 class ProgressPolicy(HistoryPolicy):
     """When a tool warns, stop guessing its return from history and count it exactly, as the oracle does.
 
-    Silent tools keep the history forecast. A tool's return time is learned only at its warning, never at its start.
+    Silent tools keep the history forecast, adjusted for their silence. A tool's return time is learned only at its
+    warning, never at its start. `warn_share` and `lead` describe the warnings: the share of tools that warn and
+    how far ahead. A real system would estimate both from its logs, as history learns past durations.
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        pool: WorkerPool,
+        past_durations: list[float],
+        starts: list[float],
+        headroom: int,
+        idle_timeout: float,
+        warn_share: float,
+        lead: float,
+    ) -> None:
         self.known: list[float] = []  # return times of warned tools, sorted; set before the first decide()
-        super().__init__(*args, **kwargs)
+        self.warn_share = warn_share
+        self.lead = lead
+        super().__init__(pool, past_durations, starts, headroom, idle_timeout)
 
     def tool_signaled(self, return_time: float) -> None:
         # The tool moves from the history guess to the exact count. Its running entry is found by return time,
@@ -40,4 +55,5 @@ class ProgressPolicy(HistoryPolicy):
 
     def _returning(self, elapsed: list[float], ahead: float, t: float) -> float:
         known = bisect.bisect_right(self.known, t) - bisect.bisect_right(self.known, t - self.pool.service_time)
-        return super()._returning(elapsed, ahead, t) + known
+        s = self.pool.service_time
+        return expected_returns(elapsed, self.past, ahead - s, ahead, self.warn_share, self.lead) + known
